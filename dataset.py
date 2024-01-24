@@ -1,9 +1,9 @@
 import json
 import datasets
 import pandas as pd
-from datasets import load_from_disk, Dataset
+from datasets import load_from_disk, Dataset, load_dataset
 from torch.utils.data import DataLoader
-from typing import List, Optional
+from typing import List, Optional, Union
 
 
 
@@ -45,14 +45,44 @@ def process_datasets(dataset_paths: list[str]):
     # Return the csv
     return df
 
+def format_prompt(messages, train: bool = True):
+    prompt = ''
+    for message in messages:
+        prompt += "<|" + message['role'] + "|>" + "\n" + message['content'] + "</s>" + "\n"
+    if not train: prompt += "<|assistant|>" + "\n"
+    return prompt
+
+
+def format_dataset(example):
+    question = example['Question']
+    # answer = example['Answer']
+    messages = [
+    {
+        "role": "system",
+        "content": "You are a compliance assistant who answers in a formal language",
+    },
+    {"role": "user", "content": f"{question}"},
+    # {"role" : "assistant", "content" : f"{answer}"}
+    ]
+    text = format_prompt(messages, train = False)
+    example['text'] = text
+    return example
+
+def process_sft_data(dataset_path: str = None):
+    dataset = load_dataset(dataset_path, token = "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")
+    test_data = dataset['validation']
+    test_data = test_data.map(format_dataset)
+    return test_data
+
 def get_loader(
-        df: pd.DataFrame, # path of the combined_csv
-        batch_size: int # Batch size for the data loader
+        dataset: Union[pd.DataFrame, datasets.Dataset], # path of the combined_csv
+        batch_size: int = 1 # Batch size for the data loader
         ):
     
     # Define the arrow dataset
-    dataset = Dataset.from_pandas(df)
-
+    if isinstance(dataset, pd.DataFrame):
+        dataset = Dataset.from_pandas(dataset) 
+        
     # Define the dataloader
     loader = DataLoader(dataset, batch_size = batch_size)
 
